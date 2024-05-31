@@ -1,0 +1,88 @@
+services:
+  zookeeper:
+    image: zookeeper:3.6
+    container_name: zookeeper
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+    networks:
+      - eureka-network
+
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    networks:
+      - eureka-network
+
+  redis:
+    image: redis:6.2.6
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - eureka-network
+
+  eurekaserv:
+    image: eurekaserv:latest
+    container_name: eurekaserv
+    build:
+      context: ./eurekaserv
+    ports:
+      - "8761:8761"
+    networks:
+      - eureka-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  msgserv:
+    image: msgserv:latest
+    container_name: msgserv
+    build:
+      context: ./msgserv
+    ports:
+      - "8081:8081"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserv:8761/eureka/
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - eurekaserv
+      - kafka
+      - redis
+    networks:
+      - eureka-network
+
+  sessionserv:
+    image: sessionserv:latest
+    container_name: sessionserv
+    build:
+      context: ./sessionserv
+    ports:
+      - "8082:8082"
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserv:8761/eureka/
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    depends_on:
+      - eurekaserv
+    networks:
+      - eureka-network
+
+
+
+networks:
+  eureka-network:
+    name: eureka-network
+    driver: bridge
