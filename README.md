@@ -10,3 +10,4 @@ micro-serv
 [x] eureka - kafka - redis
 
 [x] post /messages
+[x] get /sessions/session1

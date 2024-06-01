@@ -1,13 +1,13 @@
+version: '3.9'
+
 services:
   zookeeper:
     image: zookeeper:3.6
     container_name: zookeeper
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
     ports:
       - "2181:2181"
     networks:
-      - eureka-network
+      - sukuna_network
 
   kafka:
     image: bitnami/kafka:latest
@@ -23,15 +23,18 @@ services:
     depends_on:
       - zookeeper
     networks:
-      - eureka-network
+      - sukuna_network
 
   redis:
-    image: redis:6.2.6
+    image: redis:latest
     container_name: redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
     networks:
-      - eureka-network
+      - sukuna_network
 
   eurekaserv:
     image: eurekaserv:latest
@@ -41,12 +44,7 @@ services:
     ports:
       - "8761:8761"
     networks:
-      - eureka-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - sukuna_network
 
   msgserv:
     image: msgserv:latest
@@ -63,7 +61,7 @@ services:
       - kafka
       - redis
     networks:
-      - eureka-network
+      - sukuna_network
 
   sessionserv:
     image: sessionserv:latest
@@ -75,14 +73,18 @@ services:
     environment:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eurekaserv:8761/eureka/
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
     depends_on:
       - eurekaserv
+      - redis
     networks:
-      - eureka-network
-
-
+      - sukuna_network
 
 networks:
-  eureka-network:
-    name: eureka-network
+  sukuna_network:
+    name: sukuna_network
     driver: bridge
+
+volumes:
+  redis-data:
