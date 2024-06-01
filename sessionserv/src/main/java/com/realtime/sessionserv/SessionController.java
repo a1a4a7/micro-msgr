@@ -25,7 +25,12 @@ public class SessionController {
     }
 
     @GetMapping
-    public List<Session> getSessions() {
+    public List<Session> getAllSessions() {
         return sessionService.getAllSessions();
+    }
+
+    @GetMapping("/keys")
+    public List<String> getAllKeys() {
+        return sessionService.getAllKeys();
     }
 }

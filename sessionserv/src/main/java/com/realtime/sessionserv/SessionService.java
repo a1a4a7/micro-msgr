@@ -14,39 +14,58 @@ import java.util.List;
 public class SessionService {
 
     private static final Logger logger = LoggerFactory.getLogger(SessionService.class);
+    private static final String SESSION_PREFIX = "session:"; // 使用统一的键前缀
 
-    private final RedisTemplate<String, Session> redisTemplate;
+    private final RedisTemplate<Object, Object> redisTemplate;
 
-    public SessionService(RedisTemplate<String, Session> redisTemplate) {
+    public SessionService(RedisTemplate<Object, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
     public void saveSession(Session session) {
+        String key = SESSION_PREFIX + session.getSessionId();
         logger.info("Saving session: " + session);
-        redisTemplate.opsForValue().set(session.getSessionId(), session);
-        Session savedSession = redisTemplate.opsForValue().get(session.getSessionId());
+        redisTemplate.opsForValue().set(key, session);
+        Session savedSession = (Session) redisTemplate.opsForValue().get(key);
         logger.info("Session saved in Redis: " + savedSession);
     }
 
     public Session getSession(String sessionId) {
-        Session session = redisTemplate.opsForValue().get(sessionId);
+        String key = SESSION_PREFIX + sessionId;
+        Session session = (Session) redisTemplate.opsForValue().get(key);
         logger.info("Retrieved session: " + session);
+        if (session == null) {
+            throw new SessionNotFoundException("Session with id " + sessionId + " not found.");
+        }
         return session;
     }
 
     public List<Session> getAllSessions() {
-        ScanOptions options = ScanOptions.scanOptions().match("*").count(1000).build();
-        Cursor<String> cursor = redisTemplate.scan(options);
+        ScanOptions options = ScanOptions.scanOptions().match(SESSION_PREFIX + "*").count(1000).build();
+        Cursor<byte[]> cursor = redisTemplate.executeWithStickyConnection(redisConnection -> redisConnection.scan(options));
+
         List<Session> sessions = new ArrayList<>();
         while (cursor.hasNext()) {
-            String key = cursor.next();
-            Session session = redisTemplate.opsForValue().get(key);
+            String key = new String(cursor.next());
+            Session session = (Session) redisTemplate.opsForValue().get(key);
             if (session != null) {
                 sessions.add(session);
             }
         }
         logger.info("All retrieved sessions: " + sessions);
         return sessions;
+    }
+
+    public List<String> getAllKeys() {
+        ScanOptions options = ScanOptions.scanOptions().match("*").count(1000).build();
+        Cursor<byte[]> cursor = redisTemplate.executeWithStickyConnection(redisConnection -> redisConnection.scan(options));
+
+        List<String> keys = new ArrayList<>();
+        while (cursor.hasNext()) {
+            keys.add(new String(cursor.next()));
+        }
+        logger.info("All retrieved keys: " + keys);
+        return keys;
     }
 
     public void updateSession(Message message) {
